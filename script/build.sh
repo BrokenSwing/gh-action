@@ -3,4 +3,4 @@
 
 cargo build
 mkdir dist
-cp target/release/gh-action.exe dist/darwin-amd64.exe
+cp target/release/gh-action dist/darwin-amd64.exe
