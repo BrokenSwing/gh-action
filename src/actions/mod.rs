@@ -1,4 +1,4 @@
-use dialoguer;
+use dialoguer::{theme::ColorfulTheme, Confirm};
 use serde::Serialize;
 use std::{
     fs::{create_dir_all, remove_dir_all, File},
@@ -25,7 +25,7 @@ pub fn create_action_locally(action: &GithubAction, action_name: &str) -> std::i
     let actions_dir_path = Path::new(".github").join("actions").join(action_name);
 
     if actions_dir_path.exists() {
-        if dialoguer::Confirm::new()
+        if Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("An action with the given name already exists. Override it ?")
             .interact()?
         {
