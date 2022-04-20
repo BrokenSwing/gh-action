@@ -1,6 +1,9 @@
-#!/usr/bin/env bash
-# "It should build binaries in dist/<platform>-<arch>[.exe] as needed."
+#!/bin/bash
 
-cargo build
-mkdir dist
-cp target/release/gh-action dist/darwin-amd64.exe
+mkdir -p ./dist
+
+TARGET_TRIPLE=${TARGET_TRIPLE:-x86_64-unknown-linux-gnu}
+GOOS_GOARCH=${GOOS_GOARCH:-linux-amd64}
+
+cargo build --release --locked --target "${TARGET_TRIPLE}"
+mv "target/${TARGET_TRIPLE}/release/gh-action" "./dist/${GOOS_GOARCH}"
