@@ -6,14 +6,22 @@ impl Serialize for ActionRun {
     where
         S: Serializer,
     {
+        let mut map = serializer.serialize_map(Some(2))?;
         match &self {
             ActionRun::Composite { steps } => {
-                let mut map = serializer.serialize_map(Some(1))?;
                 map.serialize_entry("using", "composite")?;
                 map.serialize_entry("steps", steps)?;
-                map.end()
+            }
+            ActionRun::Docker { image } => {
+                map.serialize_entry("using", "docker")?;
+                map.serialize_entry("image", image)?;
+            }
+            ActionRun::Javascript { main } => {
+                map.serialize_entry("using", "node16")?;
+                map.serialize_entry("main", main)?;
             }
         }
+        map.end()
     }
 }
 
@@ -36,6 +44,8 @@ impl Serialize for ShellKind {
 #[derive(Debug)]
 pub enum ActionRun {
     Composite { steps: Vec<ActionStep> },
+    Docker { image: String },
+    Javascript { main: String },
 }
 
 #[derive(Debug, Serialize)]

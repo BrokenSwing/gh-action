@@ -26,11 +26,13 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("new") {
         let action_name = matches.value_of("NAME").unwrap();
         let action_type = matches.value_of("KIND").unwrap();
-        let action = match action_type {
-            "composite" => actions::CompositeAction::default(action_name),
-            _ => panic!("Unsupported action kind"),
+        let result = match action_type {
+            "composite" => actions::create_composite_action(action_name),
+            "docker" => actions::create_docker_action(action_name),
+            "javascript" => actions::create_javascript_action(action_name),
+            _ => panic!("Unsupported action type"),
         };
-        if let Err(err) = actions::create_action_locally(&action, action_name) {
+        if let Err(err) = result {
             eprintln!("Unable to create the action. {}", err);
         }
     }
