@@ -1,7 +1,7 @@
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use serde::Serialize;
 use std::fs::OpenOptions;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::{
     fs::{create_dir_all, remove_dir_all, File},
     io::Write,
@@ -35,7 +35,7 @@ pub struct GithubAction {
 fn create_action_yaml(
     action_name: &str,
     action: &GithubAction,
-    action_path: &PathBuf
+    action_path: &PathBuf,
 ) -> std::io::Result<Option<PathBuf>> {
     let actions_dir_path = action_path.join(action_name);
 
@@ -131,6 +131,8 @@ pub fn create_javascript_action(action_name: &str, action_path: &PathBuf) -> std
 
         let node_modules_ignored = git()
             .args(["check-ignore", "-q", node_modules_path.as_str()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status();
 
         match node_modules_ignored {

@@ -1,4 +1,4 @@
-use std::{path::Path, process::Command};
+use std::{path::Path, process::{Command, Stdio}};
 
 use clap::{App, Arg, SubCommand};
 mod actions;
@@ -30,9 +30,11 @@ fn main() {
         let action_type = matches.value_of("KIND").unwrap();
         let action_path = match Command::new("git")
             .args(["rev-parse", "--is-inside-work-tree"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
         {
-            Ok(_) => {
+            Ok(s) if s.success() => {
                 let output = Command::new("git")
                     .args(["rev-parse", "--show-toplevel"])
                     .output()
@@ -41,9 +43,8 @@ fn main() {
                     .join(".github")
                     .join("actions")
             }
-            Err(_) => Path::new(".").to_path_buf(),
+            _ => Path::new(".").to_path_buf(),
         };
-        println!("{:?}", &action_path);
 
         let result = match action_type {
             "composite" => actions::create_composite_action(action_name, &action_path),
