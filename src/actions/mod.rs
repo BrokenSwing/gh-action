@@ -5,7 +5,7 @@ use std::process::Command;
 use std::{
     fs::{create_dir_all, remove_dir_all, File},
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 mod composite;
@@ -35,8 +35,9 @@ pub struct GithubAction {
 fn create_action_yaml(
     action_name: &str,
     action: &GithubAction,
+    action_path: &PathBuf
 ) -> std::io::Result<Option<PathBuf>> {
-    let actions_dir_path = Path::new(".github").join("actions").join(action_name);
+    let actions_dir_path = action_path.join(action_name);
 
     if actions_dir_path.exists() {
         if Confirm::with_theme(&ColorfulTheme::default())
@@ -60,18 +61,18 @@ fn create_action_yaml(
     Ok(Some(actions_dir_path))
 }
 
-pub fn create_composite_action(action_name: &str) -> std::io::Result<()> {
+pub fn create_composite_action(action_name: &str, action_path: &PathBuf) -> std::io::Result<()> {
     let action = CompositeAction::default(action_name);
-    let created = create_action_yaml(action_name, &action)?;
+    let created = create_action_yaml(action_name, &action, action_path)?;
     if let Some(_) = created {
         println!("Action created sucessfully!");
     };
     Ok(())
 }
 
-pub fn create_docker_action(action_name: &str) -> std::io::Result<()> {
+pub fn create_docker_action(action_name: &str, action_path: &PathBuf) -> std::io::Result<()> {
     let action = DockerAction::default(action_name);
-    let created = create_action_yaml(action_name, &action)?;
+    let created = create_action_yaml(action_name, &action, action_path)?;
     if let Some(action_dir) = created {
         let dockerfile_path = action_dir.join("Dockerfile");
         let mut dockerfile = File::create(&dockerfile_path)?;
@@ -98,9 +99,9 @@ fn git() -> Command {
     Command::new("git")
 }
 
-pub fn create_javascript_action(action_name: &str) -> std::io::Result<()> {
+pub fn create_javascript_action(action_name: &str, action_path: &PathBuf) -> std::io::Result<()> {
     let action = JavascriptAction::default(action_name);
-    let created = create_action_yaml(action_name, &action)?;
+    let created = create_action_yaml(action_name, &action, action_path)?;
     if let Some(action_dir) = created {
         let js_file_path = action_dir.join("index.js");
         let mut js_file = File::create(&js_file_path)?;
