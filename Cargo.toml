@@ -10,3 +10,4 @@ clap = { version = "2.34.0", features = ["suggestions", "color"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
 dialoguer = "0.10.0"
+indicatif = "0.16.2"

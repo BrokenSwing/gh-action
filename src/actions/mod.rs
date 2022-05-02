@@ -1,7 +1,9 @@
 use dialoguer::{theme::ColorfulTheme, Confirm};
+use indicatif::ProgressBar;
 use serde::Serialize;
 use std::fs::OpenOptions;
-use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 use std::{
     fs::{create_dir_all, remove_dir_all, File},
     io::Write,
@@ -18,12 +20,7 @@ pub use docker::DockerAction;
 pub use runs::{ActionRun, ActionStep, ShellKind};
 
 use self::javascript::JavascriptAction;
-
-#[cfg(windows)]
-pub const NPM: &'static str = "npm.cmd";
-
-#[cfg(not(windows))]
-pub const NPM: &'static str = "npm";
+use crate::{git, npm};
 
 #[derive(Debug, Serialize)]
 pub struct GithubAction {
@@ -89,14 +86,28 @@ pub fn create_docker_action(action_name: &str, action_path: &PathBuf) -> std::io
     Ok(())
 }
 
-fn npm(action_dir: &PathBuf) -> Command {
-    let mut npm = Command::new(NPM);
-    npm.current_dir(action_dir);
-    npm
-}
-
-fn git() -> Command {
-    Command::new("git")
+fn npm_install(module: &'static str, npm_cmd: npm::Npm) {
+    let spinner = ProgressBar::new_spinner().with_message(format!("Installing {}", module));
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    thread::spawn(move || {
+        npm_cmd.install(module);
+        sender.send(())
+    });
+    while let Err(_) = receiver.recv_timeout(Duration::from_millis(100)) {
+        spinner.inc(1);
+    }
+    loop {
+        match receiver.try_recv() {
+            Ok(_) => break,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                spinner.inc(1);
+                thread::sleep(Duration::from_millis(50))
+            }
+            _ => return,
+        }
+    }
+    spinner.finish_with_message(format!("Package {} installed", module));
+    println!();
 }
 
 pub fn create_javascript_action(action_name: &str, action_path: &PathBuf) -> std::io::Result<()> {
@@ -109,47 +120,41 @@ pub fn create_javascript_action(action_name: &str, action_path: &PathBuf) -> std
         js_file.write_all("const github = require('@actions/github');\n".as_bytes())?;
         js_file.write_all("\nconsole.log('Hello, world!');".as_bytes())?;
 
-        npm(&action_dir)
-            .args(["init", "-y"])
-            .output()
-            .expect("Is `npm` installed ?");
+        let npm_cmd = npm::Npm::new(action_dir.clone());
+
+        npm_cmd.init();
         println!("NPM project initialized");
 
-        npm(&action_dir)
-            .args(["install", "@actions/core"])
-            .output()?;
-        println!("Package @actions/core installed");
+        npm_install("@actions/core", npm::Npm::new(action_dir.clone()));
+        npm_install("@actions/github", npm::Npm::new(action_dir.clone()));
 
-        npm(&action_dir)
-            .args(["install", "@actions/github"])
-            .output()?;
-        println!("Package @actions/github installed");
+        let spinner = ProgressBar::new_spinner().with_message("Installing @actions/github");
+        let (sender, receiver) = std::sync::mpsc::channel::<()>();
+        thread::spawn(move || {
+            npm_cmd.install("@actions/github");
+            sender.send(())
+        });
+        while let Err(_) = receiver.recv_timeout(Duration::from_millis(100)) {
+            spinner.inc(1);
+        }
+        spinner.finish_with_message("Package @actions/github installed");
 
         let node_modules_path = action_dir.join("node_modules");
         let node_modules_path = node_modules_path.to_str().unwrap();
         let node_modules_path = node_modules_path.replace("\\", "/");
 
-        let node_modules_ignored = git()
-            .args(["check-ignore", "-q", node_modules_path.as_str()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-
-        match node_modules_ignored {
-            Ok(status) if status.success() => {
-                if Confirm::with_theme(&ColorfulTheme::default())
-                .with_prompt(
-                    "Action's `node_modules` directory is git-ignored, it shouldn't. Update your .gitignore ?",
-                )
-                .interact()?
-                {
-                    let mut gitignore = OpenOptions::new().append(true).open(".gitignore")?;
-                    gitignore.write_all(format!("\n!{}", node_modules_path).as_bytes())?;
-                } else {
-                    println!(".gitignore not updated. You should take a look at: https://docs.github.com/en/actions/creating-actions/creating-a-javascript-action#commit-tag-and-push-your-action-to-github");
-                }
-            },
-            _ => {}
+        if git::ignored(node_modules_path.as_str()) {
+            if Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt(
+                "Action's `node_modules` directory is git-ignored, it shouldn't. Update your .gitignore ?",
+            )
+            .interact()?
+            {
+                let mut gitignore = OpenOptions::new().append(true).open(git::repository_root().join(".gitignore"))?;
+                gitignore.write_all(format!("\n!{}", node_modules_path).as_bytes())?;
+            } else {
+                println!(".gitignore not updated. You should take a look at: https://docs.github.com/en/actions/creating-actions/creating-a-javascript-action#commit-tag-and-push-your-action-to-github");
+            }
         }
     }
     Ok(())

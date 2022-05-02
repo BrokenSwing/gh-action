@@ -1,10 +1,12 @@
-use std::{path::Path, process::{Command, Stdio}};
+use std::path::Path;
 
 use clap::{App, Arg, SubCommand};
 mod actions;
+mod git;
+mod npm;
 
-fn main() {
-    let matches = App::new("Github CLI actions extension")
+fn cli_cmd() -> App<'static, 'static> {
+    App::new("Github CLI actions extension")
         .version("1.0.0")
         .author("BrokenSwing")
         .about("An extension for Github CLI to help with GHA management and creation.")
@@ -23,27 +25,19 @@ fn main() {
                         .required(true),
                 ),
         )
-        .get_matches();
+}
+
+fn main() {
+    let cmd = cli_cmd();
+    let matches = cmd.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("new") {
         let action_name = matches.value_of("NAME").unwrap();
         let action_type = matches.value_of("KIND").unwrap();
-        let action_path = match Command::new("git")
-            .args(["rev-parse", "--is-inside-work-tree"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-        {
-            Ok(s) if s.success() => {
-                let output = Command::new("git")
-                    .args(["rev-parse", "--show-toplevel"])
-                    .output()
-                    .expect("Unable to identify root directory of the git directory.");
-                Path::new(&String::from_utf8(output.stdout).unwrap().trim())
-                    .join(".github")
-                    .join("actions")
-            }
-            _ => Path::new(".").to_path_buf(),
+        let action_path = if git::in_repository() {
+            git::repository_root().join(".github").join("actions")
+        } else {
+            Path::new(".").to_path_buf()
         };
 
         let result = match action_type {
